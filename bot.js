@@ -117,6 +117,17 @@ class AdminBot {
                 return
             }
 
+            // После перезапуска бота состояние «ожидание @username» теряется — восстанавливаем для админов
+            if (
+                isAdmin &&
+                msg.text &&
+                /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim()) &&
+                !this.channelManager.isProcessingMessage(userId) &&
+                !(this.schedulerManager && this.schedulerManager.isProcessingMessage(userId))
+            ) {
+                this.channelManager.beginAddChannel(userId, chatId)
+            }
+
             if (this.channelManager.isProcessingMessage(userId)) {
                 const processed = await this.channelManager.processChannelUsername(msg)
                 if (processed) return
@@ -236,7 +247,11 @@ class AdminBot {
             }
 
             if (msg.chat.type === "private") {
-                await this.suggestionsManager.handlePrivateSuggestion(msg)
+                const looksLikeChannelUsername =
+                    msg.text && /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim())
+                if (!(isAdmin && looksLikeChannelUsername)) {
+                    await this.suggestionsManager.handlePrivateSuggestion(msg)
+                }
             }
         } catch (error) {
             logger.error("Error handling message:", error)

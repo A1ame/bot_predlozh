@@ -10,7 +10,7 @@ class ChannelManager {
   }
 
   async handleAddChannel(chatId, userId) {
-    this.userStates.set(userId, { action: "waiting_channel_username", chatId })
+    this.beginAddChannel(userId, chatId)
 
     await this.bot.sendMessage(
       chatId,
@@ -29,6 +29,20 @@ class ChannelManager {
     }
   }
 
+  _extractMessageText(msg) {
+    if (msg.text) return msg.text.trim()
+    if (msg.caption) return msg.caption.trim()
+
+    if (msg.entities && msg.text) {
+      for (const entity of msg.entities) {
+        if (entity.type === "mention" || entity.type === "text_mention") {
+          return msg.text.substring(entity.offset, entity.offset + entity.length).trim()
+        }
+      }
+    }
+    return null
+  }
+
   async processChannelUsername(msg) {
     try {
       const userId = msg.from.id
@@ -39,12 +53,21 @@ class ChannelManager {
       }
 
       // Команды и deep-link не должны попадать в ввод username канала
-      if (msg.text && msg.text.startsWith("/")) {
+      const rawText = this._extractMessageText(msg)
+      if (rawText && rawText.startsWith("/")) {
         this.userStates.delete(userId)
         return false
       }
 
-      const username = msg.text.trim()
+      if (!rawText) {
+        await this.bot.sendMessage(
+          msg.chat.id,
+          "❌ Отправьте username канала текстом, например:\n@loveuksivt",
+        )
+        return true
+      }
+
+      const username = rawText
 
       if (!username.startsWith("@")) {
         await this.bot.sendMessage(
@@ -55,6 +78,7 @@ class ChannelManager {
       }
 
       const channelUsername = username.substring(1)
+      logger.info(`Adding channel: user=${userId}, username=${username}`)
 
       try {
         const chat = await this.bot.getChat(`@${channelUsername}`)
@@ -238,6 +262,10 @@ class ChannelManager {
     } catch (error) {
       logger.error("Error showing channel settings:", error)
     }
+  }
+
+  beginAddChannel(userId, chatId) {
+    this.userStates.set(userId, { action: "waiting_channel_username", chatId })
   }
 
   isProcessingMessage(userId) {

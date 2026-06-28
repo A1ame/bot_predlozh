@@ -2,7 +2,7 @@ const db = require("../database/database")
 const keyboards = require("../utils/keyboards")
 const logger = require("../utils/logger")
 const config = require("../config/config")
-const { escapeHtml, safeAnswerCallbackQuery } = require("../utils/telegramFormat")
+const { escapeHtml, safeAnswerCallbackQuery, safeSendHtml } = require("../utils/telegramFormat")
 
 class SuggestionsManager {
     constructor(bot, vkBridges = null) {
@@ -158,7 +158,12 @@ class SuggestionsManager {
             }
 
             const channels = await db.getChannels()
-            const channel = channels.find((ch) => ch.chat_id === lastChannelId)
+            const channel = channels.find((ch) => {
+                if (ch.chat_id === lastChannelId) return true
+                const clean = ch.chat_id.startsWith("-") ? ch.chat_id.slice(1) : ch.chat_id
+                const lastClean = lastChannelId.startsWith("-") ? lastChannelId.slice(1) : lastChannelId
+                return clean === lastClean
+            })
 
             if (!channel) {
                 await this.bot.sendMessage(msg.chat.id, "❌ Канал не найден. Используйте новую ссылку.")
@@ -172,7 +177,8 @@ class SuggestionsManager {
 
             const channelLabel = escapeHtml(channel.title || channel.username)
             const channelLink = escapeHtml(channel.username || `ID: ${cleanChannelId}`)
-            await this.bot.sendMessage(
+            await safeSendHtml(
+                this.bot,
                 msg.chat.id,
                 `📋 <b>Текущий канал для предложений:</b>\n\n` +
                 `📍 ${channelLabel}\n` +
@@ -181,10 +187,7 @@ class SuggestionsManager {
                 `🔄 Чтобы изменить канал, используйте другую ссылку:\n` +
                 `<a href="${suggestLink}">${escapeHtml(suggestLink)}</a>\n\n` +
                 `📝 Или попросите администратора предоставить ссылку для другого канала.`,
-                {
-                    parse_mode: "HTML",
-                    disable_web_page_preview: true
-                }
+                { disable_web_page_preview: true },
             )
         } catch (error) {
             logger.error("Error handling /mysuggest command:", error)
@@ -224,6 +227,13 @@ class SuggestionsManager {
                         "🤔 Сначала выберите канал для предложений!\n\n" +
                         "Используйте ссылку из канала, куда хотите предложить контент, или попросите администратора предоставить ссылку.\n\n" +
                         "Пример ссылки: https://t.me/YourBotName?start=12345_channel"
+                    )
+                } else if (msg.text && msg.text.startsWith("/")) {
+                    return
+                } else if (!(msg.text && /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim()))) {
+                    await this.bot.sendMessage(
+                        msg.chat.id,
+                        "ℹ️ Чтобы отправить предложение, сначала откройте ссылку предложки из нужного канала.",
                     )
                 }
                 return
