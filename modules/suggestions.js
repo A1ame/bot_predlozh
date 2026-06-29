@@ -230,7 +230,12 @@ class SuggestionsManager {
                     )
                 } else if (msg.text && msg.text.startsWith("/")) {
                     return
-                } else if (!(msg.text && /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim()))) {
+                } else if (msg.text && /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim())) {
+                    await this.bot.sendMessage(
+                        msg.chat.id,
+                        "ℹ️ Чтобы добавить канал, откройте админ-панель (/admin) и нажмите «Добавить канал».",
+                    )
+                } else {
                     await this.bot.sendMessage(
                         msg.chat.id,
                         "ℹ️ Чтобы отправить предложение, сначала откройте ссылку предложки из нужного канала.",

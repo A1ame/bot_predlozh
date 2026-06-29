@@ -4,7 +4,7 @@ module.exports = {
   botToken: process.env.BOT_TOKEN,
   adminChatId: process.env.ADMIN_CHAT_ID,
   adminUserIds: process.env.ADMIN_USER_IDS
-    ? process.env.ADMIN_USER_IDS.split(",").map((id) => Number.parseInt(id))
+    ? process.env.ADMIN_USER_IDS.split(",").map((id) => Number.parseInt(id.trim(), 10)).filter((id) => !Number.isNaN(id))
     : [],
   dbPath: "./data/bot.db",
   botName: process.env.BOT_NAME,

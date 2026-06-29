@@ -117,15 +117,25 @@ class AdminBot {
                 return
             }
 
-            // После перезапуска бота состояние «ожидание @username» теряется — восстанавливаем для админов
-            if (
-                isAdmin &&
-                msg.text &&
-                /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim()) &&
-                !this.channelManager.isProcessingMessage(userId) &&
-                !(this.schedulerManager && this.schedulerManager.isProcessingMessage(userId))
-            ) {
-                this.channelManager.beginAddChannel(userId, chatId)
+            const looksLikeChannelUsername =
+                msg.text && /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim())
+
+            // Добавление канала — приоритет над планировщиком и предложками
+            if (isAdmin && looksLikeChannelUsername) {
+                logger.info(`Admin ${userId} adding channel: ${msg.text.trim()}`)
+                if (this.schedulerManager) {
+                    this.schedulerManager.userStates.delete(userId)
+                }
+                if (!this.channelManager.isProcessingMessage(userId)) {
+                    this.channelManager.beginAddChannel(userId, chatId)
+                }
+                const processed = await this.channelManager.processChannelUsername(msg)
+                if (processed) return
+                await this.bot.sendMessage(
+                    chatId,
+                    "❌ Не удалось обработать username канала. Попробуйте ещё раз или нажмите «Добавить канал» в меню.",
+                )
+                return
             }
 
             if (this.channelManager.isProcessingMessage(userId)) {
@@ -246,12 +256,13 @@ class AdminBot {
                 await this.handleChannelMessage(msg)
             }
 
+            if (isAdmin && msg.chat.type === "private" && (msg.text === "/start" || msg.text === "/admin")) {
+                await this.showAdminPanel(chatId)
+                return
+            }
+
             if (msg.chat.type === "private") {
-                const looksLikeChannelUsername =
-                    msg.text && /^@[a-zA-Z0-9_]{4,32}$/.test(msg.text.trim())
-                if (!(isAdmin && looksLikeChannelUsername)) {
-                    await this.suggestionsManager.handlePrivateSuggestion(msg)
-                }
+                await this.suggestionsManager.handlePrivateSuggestion(msg)
             }
         } catch (error) {
             logger.error("Error handling message:", error)
@@ -605,6 +616,9 @@ class AdminBot {
                     break
 
                 case "add_channel":
+                    if (this.schedulerManager) {
+                        this.schedulerManager.userStates.delete(userId)
+                    }
                     await this.channelManager.handleAddChannel(chatId, userId)
                     break
 
